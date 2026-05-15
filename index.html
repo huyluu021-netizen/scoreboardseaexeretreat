@@ -660,11 +660,12 @@ async function fetchCSV(url) {
 // Input: a 2D array of strings parsed from CSV
 // Output: { games: [{name, scores:{Green, Yellow, Orange, Red}, notes}], totals: {...}, standings: [...] }
 function parseScoreboard(rows) {
-  // Find header row that contains "Game" then team names
+  // Find header row that contains "Game" then team names — searching any column,
+  // since the sheet may have leading empty columns.
   let headerIdx = -1;
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i].map(c => (c || '').trim());
-    if (r[0] === 'Game' && TEAMS.every(t => r.includes(t))) {
+    if (r.includes('Game') && TEAMS.every(t => r.includes(t))) {
       headerIdx = i;
       break;
     }
@@ -684,9 +685,11 @@ function parseScoreboard(rows) {
   const games = [];
   let totals = null;
   for (let i = headerIdx + 1; i < rows.length; i++) {
-    const r = rows[i];
+    const r = rows[i] || [];
     const name = (r[colIdx.Game] || '').trim();
     if (!name) break; // blank row ends the block
+    // Stop if we've wandered into a different section (e.g. FINAL STANDINGS)
+    if (/^final\s+(standings|results)/i.test(name)) break;
     const entry = {
       name,
       scores: {
@@ -695,7 +698,7 @@ function parseScoreboard(rows) {
         Orange: toNum(r[colIdx.Orange]),
         Red:    toNum(r[colIdx.Red])
       },
-      notes: (r[colIdx.Notes] || '').trim()
+      notes: colIdx.Notes >= 0 ? (r[colIdx.Notes] || '').trim() : ''
     };
     if (/total/i.test(name)) {
       totals = entry;
