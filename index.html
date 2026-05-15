@@ -143,80 +143,6 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* HERO BANNER — 4 team photos, no frame */
-  .hero-banner {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 32px;
-  }
-  .hero-photo {
-    position: relative;
-    aspect-ratio: 4 / 5;
-    border-radius: 18px;
-    overflow: hidden;
-    background:
-      linear-gradient(160deg, var(--accent), color-mix(in srgb, var(--accent) 60%, black));
-    box-shadow:
-      0 1px 0 rgba(255,255,255,0.4) inset,
-      0 12px 28px -10px rgba(0,0,0,0.25);
-    transition: transform 0.4s cubic-bezier(.2,.7,.3,1), box-shadow 0.4s;
-  }
-  .hero-photo:hover {
-    transform: translateY(-6px) rotate(-0.5deg);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 20px 36px -10px rgba(0,0,0,0.35);
-  }
-  .hero-photo img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    z-index: 2;
-  }
-  /* When image is present (loaded), hide the fallback letter */
-  .hero-photo:has(img:not([style*="display: none"])) .hero-letter {
-    display: none;
-  }
-  .hero-letter {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(80px, 12vw, 180px);
-    color: rgba(255,255,255,0.92);
-    letter-spacing: 0.02em;
-    text-shadow: 0 4px 18px rgba(0,0,0,0.18);
-    line-height: 1;
-    z-index: 1;
-  }
-  .hero-label {
-    position: absolute;
-    bottom: 14px;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(18px, 1.8vw, 26px);
-    letter-spacing: 0.18em;
-    color: white;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
-    z-index: 3;
-  }
-  /* Subtle grain overlay for a printed, vintage feel */
-  .hero-photo::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-image:
-      radial-gradient(circle at 30% 20%, rgba(255,255,255,0.18), transparent 50%),
-      radial-gradient(circle at 70% 80%, rgba(0,0,0,0.18), transparent 50%);
-    pointer-events: none;
-    mix-blend-mode: overlay;
-  }
-
   /* TEAM CARDS ROW (leader board, top of Score view) */
   .teams-row {
     display: grid;
@@ -384,11 +310,6 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 18px;
     font-weight: 700;
-  }
-  table.score-table td.notes {
-    text-align: left;
-    color: var(--muted);
-    font-size: 12px;
   }
   table.score-table tr.total-row {
     background: #fffbe6;
@@ -590,8 +511,6 @@
   /* Responsive */
   @media (max-width: 900px) {
     .teams-row { grid-template-columns: repeat(2, 1fr); }
-    .hero-banner { grid-template-columns: repeat(4, 1fr); gap: 10px; }
-    .hero-photo { aspect-ratio: 3 / 4; border-radius: 14px; }
     table.score-table { font-size: 12px; }
     table.score-table th, table.score-table td { padding: 10px 8px; }
     table.score-table td.score, table.score-table tr.total-row td.score { font-size: 15px; }
@@ -599,7 +518,6 @@
   @media (max-width: 560px) {
     header.top { flex-direction: column; align-items: flex-start; }
     .status-block { align-items: flex-start; }
-    .hero-banner { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
 </head>
@@ -706,7 +624,7 @@ async function fetchCSV(url) {
 // SCORE UPDATE PARSING
 // =====================================================================
 // Input: a 2D array of strings parsed from CSV
-// Output: { games: [{name, scores:{Green, Yellow, Orange, Red}, notes}], totals: {...}, standings: [...] }
+// Output: { games: [{name, scores:{Green, Yellow, Orange, Red}}], totals: {...}, standings: [...] }
 function parseScoreboard(rows) {
   // Find header row that contains "Game" then team names — searching any column,
   // since the sheet may have leading empty columns.
@@ -726,8 +644,7 @@ function parseScoreboard(rows) {
     Green:  header.indexOf('Green'),
     Yellow: header.indexOf('Yellow'),
     Orange: header.indexOf('Orange'),
-    Red:    header.indexOf('Red'),
-    Notes:  header.indexOf('Notes')
+    Red:    header.indexOf('Red')
   };
 
   const games = [];
@@ -745,8 +662,7 @@ function parseScoreboard(rows) {
         Yellow: toNum(r[colIdx.Yellow]),
         Orange: toNum(r[colIdx.Orange]),
         Red:    toNum(r[colIdx.Red])
-      },
-      notes: colIdx.Notes >= 0 ? (r[colIdx.Notes] || '').trim() : ''
+      }
     };
     if (/total/i.test(name)) {
       totals = entry;
@@ -759,8 +675,7 @@ function parseScoreboard(rows) {
   if (!totals) {
     totals = {
       name: 'TOTAL POINTS',
-      scores: { Green: 0, Yellow: 0, Orange: 0, Red: 0 },
-      notes: ''
+      scores: { Green: 0, Yellow: 0, Orange: 0, Red: 0 }
     };
     games.forEach(g => {
       TEAMS.forEach(t => totals.scores[t] += g.scores[t]);
