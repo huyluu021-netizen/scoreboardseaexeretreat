@@ -388,6 +388,16 @@
     background: linear-gradient(135deg, rgba(251,188,4,0.15), rgba(255,109,1,0.10));
   }
 
+  /* Pulse animation when a value just changed */
+  .pulse {
+    animation: cellPulse 0.8s ease;
+  }
+  @keyframes cellPulse {
+    0%   { transform: scale(1); }
+    30%  { transform: scale(1.18); text-shadow: 0 0 12px currentColor; }
+    100% { transform: scale(1); }
+  }
+
   /* STANDINGS TABLE */
   table.standings {
     width: 100%;
@@ -591,16 +601,7 @@
       </div>
     </div>
 
-    <!-- Final Standings -->
-    <div class="panel">
-      <div class="panel-head">
-        <span>Final Standings</span>
-        <span class="hint">re-ranks live</span>
-      </div>
-      <div id="standings-container">
-        <div class="msg">Loading standings…</div>
-      </div>
-    </div>
+    <!-- Final Standings — removed by user request -->
 
   </section>
 
@@ -758,71 +759,128 @@ function toNum(v) {
 }
 
 // =====================================================================
-// RENDER: TEAM CARDS
+// RENDER: TEAM CARDS — build once, update in place
 // =====================================================================
+let teamCardsBuilt = false;
+
 function renderTeamCards(parsed) {
   const wrap = document.getElementById('teams-row');
   const standingsByTeam = {};
   parsed.standings.forEach(s => standingsByTeam[s.team] = s);
   const topScore = parsed.standings[0].points;
 
-  wrap.innerHTML = TEAMS.map(team => {
+  // First render: build all 4 cards
+  if (!teamCardsBuilt) {
+    wrap.innerHTML = TEAMS.map(team => {
+      const initial = team[0];
+      return `
+        <div class="team-card" data-team="${team}">
+          <div class="crown" style="display:none">👑</div>
+          <div class="swatch" style="background: ${TEAM_COLORS[team]}"></div>
+          <div class="rank-badge" data-role="rank">#–</div>
+          <div class="team-name" style="color:${TEAM_COLORS[team]}">${team}</div>
+          <div class="team-score" data-role="score" style="color: ${TEAM_COLORS[team]}">${standingsByTeam[team].points}</div>
+        </div>
+      `;
+    }).join('');
+    teamCardsBuilt = true;
+  }
+
+  // Update in place
+  TEAMS.forEach(team => {
+    const card = wrap.querySelector(`.team-card[data-team="${team}"]`);
+    if (!card) return;
     const s = standingsByTeam[team];
     const isLeader = s.points === topScore && topScore > 0;
-    const initial = team[0];
-    return `
-      <div class="team-card ${isLeader ? 'leader' : ''}" data-team="${team}">
-        ${isLeader ? '<div class="crown">👑</div>' : ''}
-        <div class="swatch" style="background: ${TEAM_COLORS[team]}"></div>
-        <div class="team-img-slot" style="background: ${TEAM_COLORS[team]}">${initial}</div>
-        <div class="rank-badge">#${s.rank}</div>
-        <div class="team-name">${team}</div>
-        <div class="team-score" style="color: ${TEAM_COLORS[team]}">${s.points}</div>
-      </div>
-    `;
-  }).join('');
+
+    card.classList.toggle('leader', isLeader);
+    card.querySelector('.crown').style.display = isLeader ? '' : 'none';
+
+    const rankEl = card.querySelector('[data-role="rank"]');
+    if (rankEl.textContent !== '#' + s.rank) rankEl.textContent = '#' + s.rank;
+
+    const scoreEl = card.querySelector('[data-role="score"]');
+    const newScore = String(s.points);
+    if (scoreEl.textContent !== newScore) {
+      scoreEl.textContent = newScore;
+      scoreEl.classList.add('pulse');
+      setTimeout(() => scoreEl.classList.remove('pulse'), 800);
+    }
+  });
 }
 
 // =====================================================================
-// RENDER: SCOREBOARD TABLE
+// RENDER: SCOREBOARD TABLE — build once, update cells in place
 // =====================================================================
+let scoreboardBuilt = false;
+
 function renderScoreboard(parsed) {
   const games = parsed.games;
   const totals = parsed.totals;
+  const container = document.getElementById('scoreboard-container');
 
-  // Per-game winner highlights — the team(s) with the highest score for that game
-  const html = `
-    <table class="score-table">
-      <thead>
-        <tr>
-          <th style="text-align:left">Game</th>
-          ${TEAMS.map(t => `<th class="team-h ${t.toLowerCase()}">${t}</th>`).join('')}
-          <th style="text-align:left">Notes</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${games.map(g => {
-          const maxScore = Math.max(...TEAMS.map(t => g.scores[t]));
-          return `
-            <tr>
+  // First render: build the full table structure
+  if (!scoreboardBuilt) {
+    const html = `
+      <table class="score-table">
+        <thead>
+          <tr>
+            <th style="text-align:left">Game</th>
+            ${TEAMS.map(t => `<th class="team-h ${t.toLowerCase()}">${t}</th>`).join('')}
+            <th style="text-align:left">Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${games.map((g, gi) => `
+            <tr data-game-idx="${gi}">
               <td class="game-name">${g.name}</td>
-              ${TEAMS.map(t => {
-                const isWinner = g.scores[t] === maxScore && maxScore > 0;
-                return `<td class="score ${isWinner ? 'winner-cell' : ''}" style="color:${isWinner ? TEAM_COLORS[t] : 'var(--ink)'}">${g.scores[t]}</td>`;
-              }).join('')}
+              ${TEAMS.map(t => `<td class="score" data-team="${t}" data-game-idx="${gi}">${g.scores[t]}</td>`).join('')}
               <td class="notes">${g.notes}</td>
             </tr>
-          `;
-        }).join('')}
-        <tr class="total-row">
-          <td style="text-align:left">${totals.name}</td>
-          ${TEAMS.map(t => `<td class="score" style="color:${TEAM_COLORS[t]}">${totals.scores[t]}</td>`).join('')}
-          <td class="notes">${totals.notes}</td>
-        </tr>
-      </tbody>
-    </table>
-  `;
-  document.getElementById('scoreboard-container').innerHTML = html;
+          `).join('')}
+          <tr class="total-row">
+            <td style="text-align:left">${totals.name}</td>
+            ${TEAMS.map(t => `<td class="score" data-team="${t}" data-total="1" style="color:${TEAM_COLORS[t]}">${totals.scores[t]}</td>`).join('')}
+            <td class="notes">${totals.notes}</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    container.innerHTML = html;
+    scoreboardBuilt = true;
+  }
+
+  // Update game cells in place
+  games.forEach((g, gi) => {
+    const maxScore = Math.max(...TEAMS.map(t => g.scores[t]));
+    TEAMS.forEach(t => {
+      const cell = container.querySelector(`td.score[data-team="${t}"][data-game-idx="${gi}"]`);
+      if (!cell) return;
+      const newVal = String(g.scores[t]);
+      const isWinner = g.scores[t] === maxScore && maxScore > 0;
+
+      // Only touch DOM if value changed (prevents flicker)
+      if (cell.textContent !== newVal) {
+        cell.textContent = newVal;
+        cell.classList.add('pulse');
+        setTimeout(() => cell.classList.remove('pulse'), 800);
+      }
+      cell.classList.toggle('winner-cell', isWinner);
+      cell.style.color = isWinner ? TEAM_COLORS[t] : 'var(--ink)';
+    });
+  });
+
+  // Update total cells in place
+  TEAMS.forEach(t => {
+    const cell = container.querySelector(`td.score[data-team="${t}"][data-total="1"]`);
+    if (!cell) return;
+    const newVal = String(totals.scores[t]);
+    if (cell.textContent !== newVal) {
+      cell.textContent = newVal;
+      cell.classList.add('pulse');
+      setTimeout(() => cell.classList.remove('pulse'), 800);
+    }
+  });
 }
 
 // =====================================================================
@@ -907,6 +965,8 @@ function renderResults(rows) {
 // =====================================================================
 // MAIN REFRESH LOOP
 // =====================================================================
+let consecutiveErrors = 0;
+
 async function refresh() {
   try {
     const [scoreRows, resultRows] = await Promise.all([
@@ -918,25 +978,31 @@ async function refresh() {
     if (parsed) {
       renderTeamCards(parsed);
       renderScoreboard(parsed);
-      renderStandings(parsed);
-    } else {
+    } else if (!scoreboardBuilt) {
+      // Only show error if we never successfully rendered
       document.getElementById('scoreboard-container').innerHTML =
         '<div class="msg error">Could not find scoreboard headers in the sheet.</div>';
     }
 
     if (resultRows) {
       renderResults(resultRows);
-    } else {
+    } else if (!document.querySelector('#results-container table')) {
       document.getElementById('results-container').innerHTML =
-        '<div class="msg error">Could not load Game Result tab.</div>';
+        '<div class="msg">No data yet in Game Result tab.</div>';
     }
 
+    consecutiveErrors = 0;
     const now = new Date();
     document.getElementById('last-update').textContent =
       'updated ' + now.toLocaleTimeString();
   } catch (err) {
-    console.error(err);
-    document.getElementById('last-update').textContent = 'error: ' + err.message;
+    consecutiveErrors++;
+    console.error('Refresh error:', err);
+    // Don't wipe existing data on a transient error — just note it
+    if (consecutiveErrors >= 3) {
+      document.getElementById('last-update').textContent =
+        'connection issue · retrying...';
+    }
   }
 }
 
