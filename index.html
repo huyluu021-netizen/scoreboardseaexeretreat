@@ -629,30 +629,6 @@
     <button class="tab" data-view="results">Game Result</button>
   </nav>
 
-  <!-- HERO BANNER: 4 team photos, no frame, just inspiring -->
-  <div class="hero-banner" id="hero-banner">
-    <div class="hero-photo" data-team="Green" style="--accent: #34A853">
-      <img src="green.jpg" alt="Green team" onerror="this.style.display='none'">
-      <div class="hero-letter">G</div>
-      <div class="hero-label">GREEN</div>
-    </div>
-    <div class="hero-photo" data-team="Yellow" style="--accent: #FBBC04">
-      <img src="yellow.jpg" alt="Yellow team" onerror="this.style.display='none'">
-      <div class="hero-letter">Y</div>
-      <div class="hero-label">YELLOW</div>
-    </div>
-    <div class="hero-photo" data-team="Orange" style="--accent: #FF6D01">
-      <img src="orange.jpg" alt="Orange team" onerror="this.style.display='none'">
-      <div class="hero-letter">O</div>
-      <div class="hero-label">ORANGE</div>
-    </div>
-    <div class="hero-photo" data-team="Red" style="--accent: #EA4335">
-      <img src="red.jpg" alt="Red team" onerror="this.style.display='none'">
-      <div class="hero-letter">R</div>
-      <div class="hero-label">RED</div>
-    </div>
-  </div>
-
   <!-- VIEW 1: SCORE UPDATE -->
   <section class="view active" id="view-score">
 
@@ -904,7 +880,6 @@ function renderScoreboard(parsed) {
           <tr>
             <th style="text-align:left">Game</th>
             ${TEAMS.map(t => `<th class="team-h ${t.toLowerCase()}">${t}</th>`).join('')}
-            <th style="text-align:left">Notes</th>
           </tr>
         </thead>
         <tbody>
@@ -912,13 +887,11 @@ function renderScoreboard(parsed) {
             <tr data-game-idx="${gi}">
               <td class="game-name">${g.name}</td>
               ${TEAMS.map(t => `<td class="score" data-team="${t}" data-game-idx="${gi}">${g.scores[t]}</td>`).join('')}
-              <td class="notes">${g.notes}</td>
             </tr>
           `).join('')}
           <tr class="total-row">
             <td style="text-align:left">${totals.name}</td>
             ${TEAMS.map(t => `<td class="score" data-team="${t}" data-total="1" style="color:${TEAM_COLORS[t]}">${totals.scores[t]}</td>`).join('')}
-            <td class="notes">${totals.notes}</td>
           </tr>
         </tbody>
       </table>
