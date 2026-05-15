@@ -172,6 +172,11 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+    z-index: 2;
+  }
+  /* When image is present (loaded), hide the fallback letter */
+  .hero-photo:has(img:not([style*="display: none"])) .hero-letter {
+    display: none;
   }
   .hero-letter {
     position: absolute;
@@ -185,6 +190,7 @@
     letter-spacing: 0.02em;
     text-shadow: 0 4px 18px rgba(0,0,0,0.18);
     line-height: 1;
+    z-index: 1;
   }
   .hero-label {
     position: absolute;
@@ -196,7 +202,8 @@
     font-size: clamp(18px, 1.8vw, 26px);
     letter-spacing: 0.18em;
     color: white;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    z-index: 3;
   }
   /* Subtle grain overlay for a printed, vintage feel */
   .hero-photo::after {
@@ -295,6 +302,22 @@
   @keyframes bob {
     0%, 100% { transform: translateX(-50%) translateY(0) rotate(-4deg); }
     50%      { transform: translateX(-50%) translateY(-4px) rotate(4deg); }
+  }
+  .team-card .cry {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 28px;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
+    animation: droop 3s ease-in-out infinite;
+  }
+  @keyframes droop {
+    0%, 100% { transform: translateX(-50%) translateY(0) rotate(-6deg); }
+    50%      { transform: translateX(-50%) translateY(2px) rotate(6deg); }
+  }
+  .team-card.loser {
+    opacity: 0.78;
   }
 
   /* PANELS */
@@ -516,7 +539,45 @@
     border-radius: 9px;
   }
 
-  /* ERROR / LOADING */
+  /* FLOATING QR BADGE */
+  .qr-badge {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: white;
+    padding: 10px 10px 6px;
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    border: 2px solid var(--ink);
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(.2,.7,.3,1);
+  }
+  .qr-badge:hover {
+    transform: translateY(-3px) scale(1.04);
+  }
+  .qr-badge img {
+    width: 110px;
+    height: 110px;
+    display: block;
+    border-radius: 4px;
+  }
+  .qr-badge .qr-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--ink);
+  }
+  @media (max-width: 560px) {
+    .qr-badge { display: none; } /* hide on phones — they're already on it */
+  }
+
+  /* Loading + error messages */
   .msg {
     padding: 40px;
     text-align: center;
@@ -545,6 +606,12 @@
 <body>
 <div class="wrap">
 
+  <!-- Floating QR code so people in the room can scan and join on their phone -->
+  <div class="qr-badge" id="qr-badge" title="Scan to open on phone">
+    <img id="qr-img" alt="QR code">
+    <div class="qr-label">SCAN ME</div>
+  </div>
+
   <header class="top">
     <div class="title-block">
       <h1><span>LIVE</span> <span>SCORE</span><span>BOARD</span> <span>2026</span></h1>
@@ -565,18 +632,22 @@
   <!-- HERO BANNER: 4 team photos, no frame, just inspiring -->
   <div class="hero-banner" id="hero-banner">
     <div class="hero-photo" data-team="Green" style="--accent: #34A853">
+      <img src="green.jpg" alt="Green team" onerror="this.style.display='none'">
       <div class="hero-letter">G</div>
       <div class="hero-label">GREEN</div>
     </div>
     <div class="hero-photo" data-team="Yellow" style="--accent: #FBBC04">
+      <img src="yellow.jpg" alt="Yellow team" onerror="this.style.display='none'">
       <div class="hero-letter">Y</div>
       <div class="hero-label">YELLOW</div>
     </div>
     <div class="hero-photo" data-team="Orange" style="--accent: #FF6D01">
+      <img src="orange.jpg" alt="Orange team" onerror="this.style.display='none'">
       <div class="hero-letter">O</div>
       <div class="hero-label">ORANGE</div>
     </div>
     <div class="hero-photo" data-team="Red" style="--accent: #EA4335">
+      <img src="red.jpg" alt="Red team" onerror="this.style.display='none'">
       <div class="hero-letter">R</div>
       <div class="hero-label">RED</div>
     </div>
@@ -768,14 +839,17 @@ function renderTeamCards(parsed) {
   const standingsByTeam = {};
   parsed.standings.forEach(s => standingsByTeam[s.team] = s);
   const topScore = parsed.standings[0].points;
+  const bottomScore = parsed.standings[parsed.standings.length - 1].points;
+  // Last place applies only when scores aren't all equal (so empty 0-0-0-0 stays neutral)
+  const hasLastPlace = topScore !== bottomScore;
 
   // First render: build all 4 cards
   if (!teamCardsBuilt) {
     wrap.innerHTML = TEAMS.map(team => {
-      const initial = team[0];
       return `
         <div class="team-card" data-team="${team}">
           <div class="crown" style="display:none">👑</div>
+          <div class="cry" style="display:none">😭</div>
           <div class="swatch" style="background: ${TEAM_COLORS[team]}"></div>
           <div class="rank-badge" data-role="rank">#–</div>
           <div class="team-name" style="color:${TEAM_COLORS[team]}">${team}</div>
@@ -792,9 +866,12 @@ function renderTeamCards(parsed) {
     if (!card) return;
     const s = standingsByTeam[team];
     const isLeader = s.points === topScore && topScore > 0;
+    const isLastPlace = hasLastPlace && s.points === bottomScore;
 
     card.classList.toggle('leader', isLeader);
+    card.classList.toggle('loser', isLastPlace);
     card.querySelector('.crown').style.display = isLeader ? '' : 'none';
+    card.querySelector('.cry').style.display = isLastPlace ? '' : 'none';
 
     const rankEl = card.querySelector('[data-role="rank"]');
     if (rankEl.textContent !== '#' + s.rank) rankEl.textContent = '#' + s.rank;
@@ -1016,6 +1093,15 @@ document.querySelectorAll('.tab').forEach(btn => {
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
   });
 });
+
+// =====================================================================
+// QR CODE — points to current page URL
+// =====================================================================
+(function setupQR() {
+  const url = window.location.href.split('#')[0];
+  const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=' + encodeURIComponent(url);
+  document.getElementById('qr-img').src = qrSrc;
+})();
 
 // =====================================================================
 // KICK OFF
