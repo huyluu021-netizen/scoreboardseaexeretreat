@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Scoreboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    --green: #34A853;
+    --yellow: #FBBC04;
+    --orange: #FF6D01;
+    --red:    #EA4335;
+    --ink:    #0f1115;
+    --paper:  #f7f6f1;
+    --muted:  #6b7280;
+    --line:   #1f2229;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 15% 10%, rgba(52,168,83,0.08), transparent 40%),
+      radial-gradient(circle at 85% 20%, rgba(251,188,4,0.10), transparent 40%),
+      radial-gradient(circle at 80% 85%, rgba(255,109,1,0.08), transparent 40%),
+      radial-gradient(circle at 20% 90%, rgba(234,67,53,0.08), transparent 40%),
+      var(--paper);
+  }
+
+  .wrap {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+  }
+
+  /* HEADER */
+  header.top {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .title-block h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(38px, 6vw, 72px);
+    line-height: 0.95;
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+  .title-block h1 span:nth-child(1) { color: var(--green); }
+  .title-block h1 span:nth-child(2) { color: var(--yellow); }
+  .title-block h1 span:nth-child(3) { color: var(--orange); }
+  .title-block h1 span:nth-child(4) { color: var(--red); }
+  .title-block .sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 6px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .status-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .live-pill .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    animation: pulse 1.4s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.3); }
+  }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 28px;
+    border-bottom: 1px solid #d8d6cc;
+  }
+  .tab {
+    background: transparent;
+    border: none;
+    padding: 14px 22px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active {
+    color: var(--ink);
+    border-bottom-color: var(--ink);
+  }
+
+  .view { display: none; }
+  .view.active { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* HERO BANNER — 4 team photos, no frame */
+  .hero-banner {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .hero-photo {
+    position: relative;
+    aspect-ratio: 4 / 5;
+    border-radius: 18px;
+    overflow: hidden;
+    background:
+      linear-gradient(160deg, var(--accent), color-mix(in srgb, var(--accent) 60%, black));
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.4) inset,
+      0 12px 28px -10px rgba(0,0,0,0.25);
+    transition: transform 0.4s cubic-bezier(.2,.7,.3,1), box-shadow 0.4s;
+  }
+  .hero-photo:hover {
+    transform: translateY(-6px) rotate(-0.5deg);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 20px 36px -10px rgba(0,0,0,0.35);
+  }
+  .hero-photo img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .hero-letter {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(80px, 12vw, 180px);
+    color: rgba(255,255,255,0.92);
+    letter-spacing: 0.02em;
+    text-shadow: 0 4px 18px rgba(0,0,0,0.18);
+    line-height: 1;
+  }
+  .hero-label {
+    position: absolute;
+    bottom: 14px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(18px, 1.8vw, 26px);
+    letter-spacing: 0.18em;
+    color: white;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  /* Subtle grain overlay for a printed, vintage feel */
+  .hero-photo::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 30% 20%, rgba(255,255,255,0.18), transparent 50%),
+      radial-gradient(circle at 70% 80%, rgba(0,0,0,0.18), transparent 50%);
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+
+  /* TEAM CARDS ROW (leader board, top of Score view) */
+  .teams-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .team-card {
+    position: relative;
+    background: white;
+    border-radius: 16px;
+    padding: 20px 18px;
+    border: 2px solid var(--line);
+    overflow: hidden;
+    transition: transform 0.3s, box-shadow 0.3s;
+  }
+  .team-card.leader {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+  }
+  .team-card .swatch {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    margin-bottom: 14px;
+  }
+  .team-card .team-img-slot {
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    background: #efeee7;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px;
+    color: white;
+    overflow: hidden;
+  }
+  .team-card .team-img-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .team-card .team-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .team-card .team-score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+    margin-top: 8px;
+    transition: color 0.3s;
+  }
+  .team-card .rank-badge {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.05em;
+  }
+  .team-card .crown {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 28px;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+    animation: bob 2.4s ease-in-out infinite;
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateX(-50%) translateY(0) rotate(-4deg); }
+    50%      { transform: translateX(-50%) translateY(-4px) rotate(4deg); }
+  }
+
+  /* PANELS */
+  .panel {
+    background: white;
+    border: 2px solid var(--ink);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .panel-head {
+    padding: 14px 22px;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 0.06em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel-head .hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: rgba(247,246,241,0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* SCOREBOARD TABLE */
+  table.score-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  table.score-table th, table.score-table td {
+    padding: 14px 16px;
+    text-align: center;
+  }
+  table.score-table th {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    border-bottom: 1px solid #e8e6dc;
+    background: #fafaf5;
+  }
+  table.score-table th.team-h {
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  table.score-table th.team-h.green   { background: var(--green); }
+  table.score-table th.team-h.yellow  { background: var(--yellow); color: var(--ink); text-shadow: none; }
+  table.score-table th.team-h.orange  { background: var(--orange); }
+  table.score-table th.team-h.red     { background: var(--red); }
+
+  table.score-table td.game-name {
+    text-align: left;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  table.score-table td.score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  table.score-table td.notes {
+    text-align: left;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  table.score-table tr.total-row {
+    background: #fffbe6;
+    border-top: 2px solid var(--ink);
+  }
+  table.score-table tr.total-row td {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 0.04em;
+  }
+  table.score-table tr.total-row td.score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px;
+  }
+  table.score-table tr:not(.total-row):hover {
+    background: #fafaf5;
+  }
+  table.score-table .winner-cell {
+    position: relative;
+    background: linear-gradient(135deg, rgba(251,188,4,0.15), rgba(255,109,1,0.10));
+  }
+
+  /* STANDINGS TABLE */
+  table.standings {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  table.standings th, table.standings td {
+    padding: 14px 16px;
+    text-align: left;
+  }
+  table.standings th {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    border-bottom: 1px solid #e8e6dc;
+    background: #fafaf5;
+  }
+  table.standings td {
+    border-bottom: 1px solid #f0eee4;
+  }
+  table.standings tr:last-child td { border-bottom: none; }
+  table.standings .rank-cell {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    width: 60px;
+  }
+  table.standings .team-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+    font-size: 16px;
+  }
+  table.standings .team-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+  }
+  table.standings .points-cell {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 18px;
+  }
+  table.standings .status-cell .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  table.standings .status-cell .badge.winner {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  table.standings .status-cell .badge.tied {
+    background: #fffbe6;
+    color: var(--ink);
+    border: 1px solid #f0d97a;
+  }
+  table.standings tr.rank-1 td { background: linear-gradient(90deg, rgba(251,188,4,0.10), transparent); }
+
+  /* GENERIC TABLE for Game Result */
+  table.generic {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  table.generic th, table.generic td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid #f0eee4;
+  }
+  table.generic th {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    background: #fafaf5;
+    border-bottom: 1px solid #e8e6dc;
+  }
+  table.generic tr:hover td { background: #fafaf5; }
+  table.generic .empty-row td {
+    color: #c0bdaf;
+    font-style: italic;
+  }
+
+  /* IMAGE GALLERY */
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    padding: 18px;
+  }
+  .gallery .slot {
+    aspect-ratio: 4/3;
+    background: #efeee7;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #aba898;
+    font-size: 12px;
+    text-align: center;
+    padding: 8px;
+    overflow: hidden;
+    border: 1px dashed #cfcdbf;
+  }
+  .gallery .slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 9px;
+  }
+
+  /* ERROR / LOADING */
+  .msg {
+    padding: 40px;
+    text-align: center;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .msg.error { color: var(--red); }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .teams-row { grid-template-columns: repeat(2, 1fr); }
+    .hero-banner { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .hero-photo { aspect-ratio: 3 / 4; border-radius: 14px; }
+    table.score-table { font-size: 12px; }
+    table.score-table th, table.score-table td { padding: 10px 8px; }
+    table.score-table td.score, table.score-table tr.total-row td.score { font-size: 15px; }
+  }
+  @media (max-width: 560px) {
+    header.top { flex-direction: column; align-items: flex-start; }
+    .status-block { align-items: flex-start; }
+    .hero-banner { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="title-block">
+      <h1><span>LIVE</span> <span>SCORE</span><span>BOARD</span> <span>2026</span></h1>
+      <div class="sub">Four teams. Six games. One champion.</div>
+    </div>
+    <div class="status-block">
+      <span class="live-pill"><span class="dot"></span> LIVE</span>
+      <span id="last-update">syncing...</span>
+      <span>refresh · 5s</span>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-view="score">Score Update</button>
+    <button class="tab" data-view="results">Game Result</button>
+  </nav>
+
+  <!-- HERO BANNER: 4 team photos, no frame, just inspiring -->
+  <div class="hero-banner" id="hero-banner">
+    <div class="hero-photo" data-team="Green" style="--accent: #34A853">
+      <div class="hero-letter">G</div>
+      <div class="hero-label">GREEN</div>
+    </div>
+    <div class="hero-photo" data-team="Yellow" style="--accent: #FBBC04">
+      <div class="hero-letter">Y</div>
+      <div class="hero-label">YELLOW</div>
+    </div>
+    <div class="hero-photo" data-team="Orange" style="--accent: #FF6D01">
+      <div class="hero-letter">O</div>
+      <div class="hero-label">ORANGE</div>
+    </div>
+    <div class="hero-photo" data-team="Red" style="--accent: #EA4335">
+      <div class="hero-letter">R</div>
+      <div class="hero-label">RED</div>
+    </div>
+  </div>
+
+  <!-- VIEW 1: SCORE UPDATE -->
+  <section class="view active" id="view-score">
+
+    <!-- Team cards row -->
+    <div class="teams-row" id="teams-row">
+      <!-- populated by JS -->
+    </div>
+
+    <!-- Scoreboard table -->
+    <div class="panel">
+      <div class="panel-head">
+        <span>Game-by-Game Scoreboard</span>
+        <span class="hint">max 9 pts / game / team</span>
+      </div>
+      <div id="scoreboard-container">
+        <div class="msg">Loading scoreboard…</div>
+      </div>
+    </div>
+
+    <!-- Final Standings -->
+    <div class="panel">
+      <div class="panel-head">
+        <span>Final Standings</span>
+        <span class="hint">re-ranks live</span>
+      </div>
+      <div id="standings-container">
+        <div class="msg">Loading standings…</div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- VIEW 2: GAME RESULT -->
+  <section class="view" id="view-results">
+    <div class="panel">
+      <div class="panel-head">
+        <span>Game Result Log</span>
+        <span class="hint">syncing from sheet</span>
+      </div>
+      <div id="results-container">
+        <div class="msg">Loading results…</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// =====================================================================
+// CONFIG
+// =====================================================================
+const URLS = {
+  score:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vQKXUyWX3KHaPmTiEcUYUvgDUTIZmzGnZuvtC6SKoYzfSmD0vPLrhXMYab_1covZw/pub?gid=863760300&single=true&output=csv',
+  results: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQKXUyWX3KHaPmTiEcUYUvgDUTIZmzGnZuvtC6SKoYzfSmD0vPLrhXMYab_1covZw/pub?gid=203902279&single=true&output=csv'
+};
+
+const REFRESH_MS = 5000;
+
+const TEAMS = ['Green', 'Yellow', 'Orange', 'Red'];
+const TEAM_COLORS = {
+  Green:  '#34A853',
+  Yellow: '#FBBC04',
+  Orange: '#FF6D01',
+  Red:    '#EA4335'
+};
+
+// Cache buster appended to URLs so the browser doesn't serve old CSV
+function withBust(url) {
+  const sep = url.includes('?') ? '&' : '?';
+  return url + sep + 't=' + Date.now();
+}
+
+// =====================================================================
+// FETCH + PARSE
+// =====================================================================
+async function fetchCSV(url) {
+  const res = await fetch(withBust(url), { cache: 'no-store' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const text = await res.text();
+  return Papa.parse(text, { skipEmptyLines: false }).data;
+}
+
+// =====================================================================
+// SCORE UPDATE PARSING
+// =====================================================================
+// Input: a 2D array of strings parsed from CSV
+// Output: { games: [{name, scores:{Green, Yellow, Orange, Red}, notes}], totals: {...}, standings: [...] }
+function parseScoreboard(rows) {
+  // Find header row that contains "Game" then team names
+  let headerIdx = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i].map(c => (c || '').trim());
+    if (r[0] === 'Game' && TEAMS.every(t => r.includes(t))) {
+      headerIdx = i;
+      break;
+    }
+  }
+  if (headerIdx === -1) return null;
+
+  const header = rows[headerIdx].map(c => (c || '').trim());
+  const colIdx = {
+    Game:   header.indexOf('Game'),
+    Green:  header.indexOf('Green'),
+    Yellow: header.indexOf('Yellow'),
+    Orange: header.indexOf('Orange'),
+    Red:    header.indexOf('Red'),
+    Notes:  header.indexOf('Notes')
+  };
+
+  const games = [];
+  let totals = null;
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const name = (r[colIdx.Game] || '').trim();
+    if (!name) break; // blank row ends the block
+    const entry = {
+      name,
+      scores: {
+        Green:  toNum(r[colIdx.Green]),
+        Yellow: toNum(r[colIdx.Yellow]),
+        Orange: toNum(r[colIdx.Orange]),
+        Red:    toNum(r[colIdx.Red])
+      },
+      notes: (r[colIdx.Notes] || '').trim()
+    };
+    if (/total/i.test(name)) {
+      totals = entry;
+    } else {
+      games.push(entry);
+    }
+  }
+
+  // If no explicit total row, compute totals from games
+  if (!totals) {
+    totals = {
+      name: 'TOTAL POINTS',
+      scores: { Green: 0, Yellow: 0, Orange: 0, Red: 0 },
+      notes: ''
+    };
+    games.forEach(g => {
+      TEAMS.forEach(t => totals.scores[t] += g.scores[t]);
+    });
+  }
+
+  // Build standings — rank by total points desc, ties share rank
+  const sorted = [...TEAMS].sort((a, b) => totals.scores[b] - totals.scores[a]);
+  const standings = [];
+  let lastScore = null;
+  let lastRank = 0;
+  sorted.forEach((team, i) => {
+    const score = totals.scores[team];
+    let rank;
+    if (score === lastScore) {
+      rank = lastRank;
+    } else {
+      rank = i + 1;
+      lastRank = rank;
+      lastScore = score;
+    }
+    standings.push({ team, points: score, rank });
+  });
+  // Mark winner(s): all teams sharing top score = WINNER
+  const topScore = standings[0].points;
+  const winners = standings.filter(s => s.points === topScore && topScore > 0).length;
+  standings.forEach(s => {
+    if (topScore === 0) {
+      s.status = 'TBD';
+    } else if (s.points === topScore) {
+      s.status = winners > 1 ? 'TIED LEAD' : 'WINNER';
+    } else {
+      s.status = '—';
+    }
+  });
+
+  return { games, totals, standings };
+}
+
+function toNum(v) {
+  const n = parseFloat((v || '').toString().replace(/[^0-9.\-]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+// =====================================================================
+// RENDER: TEAM CARDS
+// =====================================================================
+function renderTeamCards(parsed) {
+  const wrap = document.getElementById('teams-row');
+  const standingsByTeam = {};
+  parsed.standings.forEach(s => standingsByTeam[s.team] = s);
+  const topScore = parsed.standings[0].points;
+
+  wrap.innerHTML = TEAMS.map(team => {
+    const s = standingsByTeam[team];
+    const isLeader = s.points === topScore && topScore > 0;
+    const initial = team[0];
+    return `
+      <div class="team-card ${isLeader ? 'leader' : ''}" data-team="${team}">
+        ${isLeader ? '<div class="crown">👑</div>' : ''}
+        <div class="swatch" style="background: ${TEAM_COLORS[team]}"></div>
+        <div class="team-img-slot" style="background: ${TEAM_COLORS[team]}">${initial}</div>
+        <div class="rank-badge">#${s.rank}</div>
+        <div class="team-name">${team}</div>
+        <div class="team-score" style="color: ${TEAM_COLORS[team]}">${s.points}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// =====================================================================
+// RENDER: SCOREBOARD TABLE
+// =====================================================================
+function renderScoreboard(parsed) {
+  const games = parsed.games;
+  const totals = parsed.totals;
+
+  // Per-game winner highlights — the team(s) with the highest score for that game
+  const html = `
+    <table class="score-table">
+      <thead>
+        <tr>
+          <th style="text-align:left">Game</th>
+          ${TEAMS.map(t => `<th class="team-h ${t.toLowerCase()}">${t}</th>`).join('')}
+          <th style="text-align:left">Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${games.map(g => {
+          const maxScore = Math.max(...TEAMS.map(t => g.scores[t]));
+          return `
+            <tr>
+              <td class="game-name">${g.name}</td>
+              ${TEAMS.map(t => {
+                const isWinner = g.scores[t] === maxScore && maxScore > 0;
+                return `<td class="score ${isWinner ? 'winner-cell' : ''}" style="color:${isWinner ? TEAM_COLORS[t] : 'var(--ink)'}">${g.scores[t]}</td>`;
+              }).join('')}
+              <td class="notes">${g.notes}</td>
+            </tr>
+          `;
+        }).join('')}
+        <tr class="total-row">
+          <td style="text-align:left">${totals.name}</td>
+          ${TEAMS.map(t => `<td class="score" style="color:${TEAM_COLORS[t]}">${totals.scores[t]}</td>`).join('')}
+          <td class="notes">${totals.notes}</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+  document.getElementById('scoreboard-container').innerHTML = html;
+}
+
+// =====================================================================
+// RENDER: STANDINGS TABLE
+// =====================================================================
+function renderStandings(parsed) {
+  const html = `
+    <table class="standings">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Team</th>
+          <th>Total Points</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${parsed.standings.map(s => `
+          <tr class="rank-${s.rank}">
+            <td class="rank-cell" style="color:${TEAM_COLORS[s.team]}">${s.rank}</td>
+            <td class="team-cell">
+              <span class="team-dot" style="background:${TEAM_COLORS[s.team]}"></span>
+              ${s.team}
+            </td>
+            <td class="points-cell">${s.points}</td>
+            <td class="status-cell">
+              <span class="badge ${s.status === 'WINNER' ? 'winner' : s.status === 'TIED LEAD' ? 'tied' : ''}">${s.status}</span>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  document.getElementById('standings-container').innerHTML = html;
+}
+
+// =====================================================================
+// RENDER: GAME RESULTS (generic table from CSV)
+// =====================================================================
+function renderResults(rows) {
+  if (!rows || rows.length === 0) {
+    document.getElementById('results-container').innerHTML =
+      '<div class="msg">No data in Game Result tab yet.</div>';
+    return;
+  }
+
+  // Find first row with multiple non-empty cells = header
+  let headerIdx = 0;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].filter(c => (c || '').trim()).length >= 2) {
+      headerIdx = i;
+      break;
+    }
+  }
+  const header = rows[headerIdx].map(c => (c || '').trim());
+  const dataRows = rows.slice(headerIdx + 1)
+    .filter(r => r.some(c => (c || '').trim()));
+
+  if (dataRows.length === 0) {
+    document.getElementById('results-container').innerHTML =
+      '<div class="msg">Game Result tab is empty. Add rows in the sheet and they\'ll appear here.</div>';
+    return;
+  }
+
+  const html = `
+    <table class="generic">
+      <thead>
+        <tr>${header.map(h => `<th>${h || '—'}</th>`).join('')}</tr>
+      </thead>
+      <tbody>
+        ${dataRows.map(r => `
+          <tr>
+            ${header.map((_, i) => `<td>${(r[i] || '').trim() || '—'}</td>`).join('')}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  document.getElementById('results-container').innerHTML = html;
+}
+
+// =====================================================================
+// MAIN REFRESH LOOP
+// =====================================================================
+async function refresh() {
+  try {
+    const [scoreRows, resultRows] = await Promise.all([
+      fetchCSV(URLS.score),
+      fetchCSV(URLS.results).catch(() => null)
+    ]);
+
+    const parsed = parseScoreboard(scoreRows);
+    if (parsed) {
+      renderTeamCards(parsed);
+      renderScoreboard(parsed);
+      renderStandings(parsed);
+    } else {
+      document.getElementById('scoreboard-container').innerHTML =
+        '<div class="msg error">Could not find scoreboard headers in the sheet.</div>';
+    }
+
+    if (resultRows) {
+      renderResults(resultRows);
+    } else {
+      document.getElementById('results-container').innerHTML =
+        '<div class="msg error">Could not load Game Result tab.</div>';
+    }
+
+    const now = new Date();
+    document.getElementById('last-update').textContent =
+      'updated ' + now.toLocaleTimeString();
+  } catch (err) {
+    console.error(err);
+    document.getElementById('last-update').textContent = 'error: ' + err.message;
+  }
+}
+
+// =====================================================================
+// TABS
+// =====================================================================
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const view = btn.dataset.view;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === btn));
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
+  });
+});
+
+// =====================================================================
+// KICK OFF
+// =====================================================================
+refresh();
+setInterval(refresh, REFRESH_MS);
+</script>
+</body>
+</html>
